@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/apexwoot/lms-sls-go/internal/env"
@@ -54,6 +55,7 @@ func buildConfig() (*pgxpool.Config, error) {
 	cfg.MaxConns = poolMax
 	cfg.MaxConnIdleTime = idleTimeout
 	cfg.ConnConfig.ConnectTimeout = connectTimeout
+	cfg.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeExec
 	return cfg, nil
 }
 
