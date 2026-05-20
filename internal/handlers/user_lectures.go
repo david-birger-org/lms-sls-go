@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"encoding/base64"
 	"net/http"
 	"strings"
 
@@ -52,17 +51,11 @@ func UserLectures(c *gin.Context) {
 
 	watermarked, err := lectures.ApplyWatermark(lecture.PDFData)
 	if err != nil {
-		httpx.Error(c, http.StatusInternalServerError, "Failed to fetch lectures: "+err.Error())
+		httpx.Error(c, http.StatusInternalServerError, "Failed to watermark lecture: "+err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"lecture": gin.H{
-			"slug":          lecture.Slug,
-			"title":         lecture.Title,
-			"description":   lecture.Description,
-			"coverImageUrl": lecture.CoverImageURL,
-			"pdfBase64":     base64.StdEncoding.EncodeToString(watermarked),
-		},
-	})
+	c.Header("Cache-Control", "private, no-store")
+	c.Header("Content-Disposition", `inline; filename="`+slug+`.pdf"`)
+	c.Data(http.StatusOK, "application/pdf", watermarked)
 }
