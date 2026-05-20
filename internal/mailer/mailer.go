@@ -2,6 +2,7 @@ package mailer
 
 import (
 	"fmt"
+	"net/mail"
 	"net/smtp"
 	"regexp"
 	"strings"
@@ -81,11 +82,28 @@ func SendTransactional(in Input) Result {
 	}
 	defaultMu.Unlock()
 
+	envelopeFrom, err := bareAddress(cfg.FromAddress)
+	if err != nil {
+		return Result{OK: false, Reason: ReasonSendFailed, Err: fmt.Errorf("invalid from address: %w", err)}
+	}
+	envelopeTo, err := bareAddress(to)
+	if err != nil {
+		return Result{OK: false, Reason: ReasonSendFailed, Err: fmt.Errorf("invalid to address: %w", err)}
+	}
+
 	msg := buildMessage(cfg.FromAddress, to, in)
-	if err := sender(cfg.FromAddress, []string{to}, msg); err != nil {
+	if err := sender(envelopeFrom, []string{envelopeTo}, msg); err != nil {
 		return Result{OK: false, Reason: ReasonSendFailed, Err: err}
 	}
 	return Result{OK: true}
+}
+
+func bareAddress(addr string) (string, error) {
+	parsed, err := mail.ParseAddress(addr)
+	if err != nil {
+		return "", err
+	}
+	return parsed.Address, nil
 }
 
 func buildMessage(from, to string, in Input) []byte {
@@ -99,6 +117,10 @@ func buildMessage(from, to string, in Input) []byte {
 	sb.WriteString("MIME-Version: 1.0\r\n")
 	sb.WriteString("Content-Type: text/plain; charset=UTF-8\r\n")
 	sb.WriteString("\r\n")
-	sb.WriteString(in.Text)
+	sb.WriteString(normalizeLineEndings(in.Text))
 	return []byte(sb.String())
+}
+
+func normalizeLineEndings(s string) string {
+	return strings.ReplaceAll(strings.ReplaceAll(s, "\r\n", "\n"), "\n", "\r\n")
 }
