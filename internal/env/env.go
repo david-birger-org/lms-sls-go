@@ -34,6 +34,13 @@ func DatabaseURL() (string, error) { return Required("DATABASE_URL") }
 func InternalAPIKey() (string, error) { return Required("INTERNAL_API_KEY") }
 func MonobankToken() (string, error)  { return Required("MONOBANK_TOKEN") }
 
+// PublicAPIKey is an optional, narrowly-scoped key accepted only on the
+// public service endpoints (contact requests, transactional mail). When set,
+// the marketing site can authenticate with it instead of the admin-capable
+// INTERNAL_API_KEY, so a leak there cannot forge admin headers. Empty means
+// only INTERNAL_API_KEY is accepted (backward compatible).
+func PublicAPIKey() string { return Optional("PUBLIC_API_KEY") }
+
 type MailConfig struct {
 	GmailUser        string
 	GmailPassword    string

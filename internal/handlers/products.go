@@ -10,8 +10,6 @@ import (
 	"github.com/apexwoot/lms-sls-go/internal/products"
 )
 
-func toProductRecord(r products.Row) products.Row { return r }
-
 func ProductsList(c *gin.Context) {
 	slug := strings.TrimSpace(c.Query("slug"))
 	ctx := c.Request.Context()

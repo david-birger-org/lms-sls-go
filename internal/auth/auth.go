@@ -57,6 +57,43 @@ func DefaultKeyProvider() string {
 	return key
 }
 
+func internalKeyValid(key string) bool {
+	expected, _ := env.InternalAPIKey()
+	return key != "" && key == expected
+}
+
+// serviceKeyValid accepts the admin-capable INTERNAL_API_KEY or, when
+// configured, the narrowly-scoped PUBLIC_API_KEY. Used by public service
+// endpoints so the marketing site need not hold the admin key.
+func serviceKeyValid(key string) bool {
+	if internalKeyValid(key) {
+		return true
+	}
+	if pub := env.PublicAPIKey(); pub != "" && key == pub {
+		return true
+	}
+	return false
+}
+
+func requireKey(valid func(string) bool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if !valid(trimmedHeader(c, HeaderInternalAPIKey)) {
+			httpx.Error(c, http.StatusUnauthorized, "Unauthorized.")
+			c.Abort()
+			return
+		}
+		c.Next()
+	}
+}
+
+// RequireInternalKey gates an endpoint on the admin-capable INTERNAL_API_KEY
+// without requiring trusted admin/user headers.
+func RequireInternalKey() gin.HandlerFunc { return requireKey(internalKeyValid) }
+
+// RequireServiceKey gates public service endpoints on either the internal or
+// the public key.
+func RequireServiceKey() gin.HandlerFunc { return requireKey(serviceKeyValid) }
+
 func RequireAdminWith(provider InternalKeyProvider) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		key := trimmedHeader(c, HeaderInternalAPIKey)

@@ -7,7 +7,6 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/apexwoot/lms-sls-go/internal/auth"
-	"github.com/apexwoot/lms-sls-go/internal/env"
 	"github.com/apexwoot/lms-sls-go/internal/httpx"
 	"github.com/apexwoot/lms-sls-go/internal/invoicestore"
 	"github.com/apexwoot/lms-sls-go/internal/userfeatures"
@@ -21,23 +20,7 @@ type internalAppUserBody struct {
 	FullName   string `json:"fullName"`
 }
 
-func firstNonEmpty(values ...string) string {
-	for _, v := range values {
-		if s := strings.TrimSpace(v); s != "" {
-			return s
-		}
-	}
-	return ""
-}
-
 func InternalAppUsersUpsert(c *gin.Context) {
-	key := strings.TrimSpace(c.GetHeader(auth.HeaderInternalAPIKey))
-	expected, _ := env.InternalAPIKey()
-	if key == "" || key != expected {
-		httpx.Error(c, http.StatusUnauthorized, "Unauthorized.")
-		return
-	}
-
 	var body internalAppUserBody
 	if err := c.ShouldBindJSON(&body); err != nil {
 		httpx.Error(c, http.StatusBadRequest, "Invalid JSON payload.")

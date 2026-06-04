@@ -9,41 +9,35 @@ import (
 
 	"github.com/apexwoot/lms-sls-go/internal/auth"
 	"github.com/apexwoot/lms-sls-go/internal/contactrequests"
-	"github.com/apexwoot/lms-sls-go/internal/env"
 	"github.com/apexwoot/lms-sls-go/internal/httpx"
 	"github.com/apexwoot/lms-sls-go/internal/invoicestore"
 )
 
 type contactRequestPayload struct {
-	RequestType            any `json:"requestType"`
-	FirstName              any `json:"firstName"`
-	LastName               any `json:"lastName"`
-	Email                  any `json:"email"`
-	Country                any `json:"country"`
-	Phone                  any `json:"phone"`
-	PreferredContactMethod any `json:"preferredContactMethod"`
-	Social                 any `json:"social"`
-	Message                any `json:"message"`
-	Service                any `json:"service"`
+	RequestType            string  `json:"requestType"`
+	FirstName              *string `json:"firstName"`
+	LastName               *string `json:"lastName"`
+	Email                  *string `json:"email"`
+	Country                *string `json:"country"`
+	Phone                  *string `json:"phone"`
+	PreferredContactMethod *string `json:"preferredContactMethod"`
+	Social                 *string `json:"social"`
+	Message                *string `json:"message"`
+	Service                *string `json:"service"`
 }
 
-func normalizeOptionalString(v any) *string {
-	s, ok := v.(string)
-	if !ok {
+func normalizeOptionalString(v *string) *string {
+	if v == nil {
 		return nil
 	}
-	t := strings.TrimSpace(s)
+	t := strings.TrimSpace(*v)
 	if t == "" {
 		return nil
 	}
 	return &t
 }
 
-func parseContactRequestType(v any) (contactrequests.Type, bool) {
-	s, ok := v.(string)
-	if !ok {
-		return "", false
-	}
+func parseContactRequestType(s string) (contactrequests.Type, bool) {
 	switch contactrequests.Type(s) {
 	case contactrequests.TypeContact, contactrequests.TypeService:
 		return contactrequests.Type(s), true
@@ -73,13 +67,6 @@ func toContactRequestRecord(r contactrequests.Row) gin.H {
 }
 
 func ContactRequestsCreate(c *gin.Context) {
-	key := strings.TrimSpace(c.GetHeader(auth.HeaderInternalAPIKey))
-	expected, _ := env.InternalAPIKey()
-	if key == "" || key != expected {
-		httpx.Error(c, http.StatusUnauthorized, "Unauthorized.")
-		return
-	}
-
 	var payload contactRequestPayload
 	if err := c.ShouldBindJSON(&payload); err != nil {
 		httpx.Error(c, http.StatusBadRequest, "Invalid payload. requestType must be 'contact' or 'service'.")

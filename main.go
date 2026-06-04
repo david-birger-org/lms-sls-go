@@ -28,14 +28,14 @@ func newRouter() *gin.Engine {
 
 	api := r.Group("/api")
 
-	api.POST("/contact-requests", handlers.ContactRequestsCreate)
+	api.POST("/contact-requests", auth.RequireServiceKey(), handlers.ContactRequestsCreate)
 
 	contactAdmin := api.Group("/contact-requests/admin", auth.RequireAdmin())
 	contactAdmin.GET("", handlers.ContactRequestsAdminList)
 	contactAdmin.PUT("", handlers.ContactRequestsAdminUpdate)
 
-	api.POST("/internal/app-users/upsert", handlers.InternalAppUsersUpsert)
-	api.POST("/mail/transactional", handlers.MailTransactional)
+	api.POST("/internal/app-users/upsert", auth.RequireInternalKey(), handlers.InternalAppUsersUpsert)
+	api.POST("/mail/transactional", auth.RequireServiceKey(), handlers.MailTransactional)
 
 	mbAdmin := api.Group("/monobank", auth.RequireAdmin())
 	mbAdmin.POST("/invoice", handlers.MonobankInvoiceCreate)

@@ -2,7 +2,11 @@ package userfeatures
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 
 	"github.com/apexwoot/lms-sls-go/internal/db"
 )
@@ -40,33 +44,6 @@ func SelectActiveFeatures(ctx context.Context, authUserID string) ([]ActiveFeatu
 	return out, rows.Err()
 }
 
-func SelectActiveFeaturesByAppUserID(ctx context.Context, appUserID string) ([]ActiveFeature, error) {
-	pool, err := db.Pool(ctx)
-	if err != nil {
-		return nil, err
-	}
-	rows, err := pool.Query(ctx, `
-		select feature, granted_at
-		from user_features
-		where app_user_id = $1
-		  and revoked_at is null
-		order by granted_at asc
-	`, appUserID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := make([]ActiveFeature, 0)
-	for rows.Next() {
-		var f ActiveFeature
-		if err := rows.Scan(&f.Feature, &f.GrantedAt); err != nil {
-			return nil, err
-		}
-		out = append(out, f)
-	}
-	return out, rows.Err()
-}
-
 func HasActiveFeature(ctx context.Context, authUserID, feature string) (bool, error) {
 	pool, err := db.Pool(ctx)
 	if err != nil {
@@ -85,7 +62,10 @@ func HasActiveFeature(ctx context.Context, authUserID, feature string) (bool, er
 	if err == nil {
 		return true, nil
 	}
-	return false, nil
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	return false, fmt.Errorf("checking feature %s: %w", feature, err)
 }
 
 type GrantInput struct {

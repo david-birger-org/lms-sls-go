@@ -7,8 +7,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/apexwoot/lms-sls-go/internal/auth"
-	"github.com/apexwoot/lms-sls-go/internal/env"
 	"github.com/apexwoot/lms-sls-go/internal/httpx"
 	"github.com/apexwoot/lms-sls-go/internal/mailer"
 )
@@ -20,13 +18,6 @@ type mailPayload struct {
 }
 
 func MailTransactional(c *gin.Context) {
-	key := strings.TrimSpace(c.GetHeader(auth.HeaderInternalAPIKey))
-	expected, _ := env.InternalAPIKey()
-	if key == "" || key != expected {
-		httpx.Error(c, http.StatusUnauthorized, "Unauthorized.")
-		return
-	}
-
 	var body mailPayload
 	if err := c.ShouldBindJSON(&body); err != nil {
 		httpx.Error(c, http.StatusBadRequest, "Invalid payload.")
