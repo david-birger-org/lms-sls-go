@@ -25,10 +25,10 @@ import (
 )
 
 const (
-	baseURL                    = "https://api.monobank.ua/api/merchant/"
-	maxRangeSeconds            = 31 * 24 * 60 * 60
-	MaxStatementRangeSeconds   = maxRangeSeconds
-	defaultStatementLookback   = 30 * 24 * 60 * 60
+	baseURL                  = "https://api.monobank.ua/api/merchant/"
+	maxRangeSeconds          = 31 * 24 * 60 * 60
+	MaxStatementRangeSeconds = maxRangeSeconds
+	defaultStatementLookback = 30 * 24 * 60 * 60
 )
 
 type SupportedCurrency string
@@ -107,17 +107,17 @@ type statementResponse struct {
 }
 
 type PaymentInfo struct {
-	MaskedPan     string  `json:"maskedPan,omitempty"`
-	ApprovalCode  string  `json:"approvalCode,omitempty"`
-	Rrn           string  `json:"rrn,omitempty"`
-	TranID        string  `json:"tranId,omitempty"`
-	Terminal      string  `json:"terminal,omitempty"`
-	Bank          string  `json:"bank,omitempty"`
-	PaymentSystem string  `json:"paymentSystem,omitempty"`
-	PaymentMethod string  `json:"paymentMethod,omitempty"`
-	Fee           *int64  `json:"fee,omitempty"`
-	Country       string  `json:"country,omitempty"`
-	AgentFee      *int64  `json:"agentFee,omitempty"`
+	MaskedPan     string `json:"maskedPan,omitempty"`
+	ApprovalCode  string `json:"approvalCode,omitempty"`
+	Rrn           string `json:"rrn,omitempty"`
+	TranID        string `json:"tranId,omitempty"`
+	Terminal      string `json:"terminal,omitempty"`
+	Bank          string `json:"bank,omitempty"`
+	PaymentSystem string `json:"paymentSystem,omitempty"`
+	PaymentMethod string `json:"paymentMethod,omitempty"`
+	Fee           *int64 `json:"fee,omitempty"`
+	Country       string `json:"country,omitempty"`
+	AgentFee      *int64 `json:"agentFee,omitempty"`
 }
 
 type CancelItem struct {
@@ -150,6 +150,20 @@ type InvoiceResponse struct {
 	PageURL   string `json:"pageUrl,omitempty"`
 }
 
+type FiscalCheck struct {
+	ID                  string `json:"id"`
+	Status              string `json:"status"`
+	Type                string `json:"type"`
+	FiscalizationSource string `json:"fiscalizationSource"`
+	StatusDescription   string `json:"statusDescription,omitempty"`
+	TaxURL              string `json:"taxUrl,omitempty"`
+	File                string `json:"file,omitempty"`
+}
+
+type fiscalChecksResponse struct {
+	Checks []FiscalCheck `json:"checks"`
+}
+
 type InvoiceRemovalResponse struct {
 	InvoiceID string `json:"invoiceId"`
 	Status    string `json:"status"`
@@ -164,8 +178,8 @@ type Client struct {
 	baseURL    string
 	tokenFn    func() (string, error)
 
-	pkMu       sync.Mutex
-	cachedKey  string
+	pkMu      sync.Mutex
+	cachedKey string
 }
 
 func defaultTokenFn() (string, error) { return env.MonobankToken() }
@@ -295,8 +309,10 @@ func (c *Client) FetchStatement(ctx context.Context, r StatementRange) ([]Statem
 type CreateInvoiceInput struct {
 	AmountMinor     int64
 	Currency        SupportedCurrency
+	CustomerEmail   *string
 	CustomerName    string
 	Description     string
+	FiscalItems     []FiscalizationItem
 	RedirectURL     string
 	Reference       string
 	WebhookURL      string
@@ -304,29 +320,48 @@ type CreateInvoiceInput struct {
 }
 
 type createInvoiceBody struct {
-	Amount           int64              `json:"amount"`
-	Ccy              int                `json:"ccy"`
-	Validity         int64              `json:"validity"`
-	MerchantPaymInfo merchantPaymInfo   `json:"merchantPaymInfo"`
-	RedirectURL      string             `json:"redirectUrl,omitempty"`
-	WebHookURL       string             `json:"webHookUrl,omitempty"`
+	Amount           int64            `json:"amount"`
+	Ccy              int              `json:"ccy"`
+	Validity         int64            `json:"validity"`
+	MerchantPaymInfo merchantPaymInfo `json:"merchantPaymInfo"`
+	RedirectURL      string           `json:"redirectUrl,omitempty"`
+	WebHookURL       string           `json:"webHookUrl,omitempty"`
 }
 
 type merchantPaymInfo struct {
-	Reference   string `json:"reference"`
-	Destination string `json:"destination"`
-	Comment     string `json:"comment"`
+	Reference      string              `json:"reference"`
+	Destination    string              `json:"destination"`
+	Comment        string              `json:"comment"`
+	CustomerEmails []string            `json:"customerEmails,omitempty"`
+	BasketOrder    []FiscalizationItem `json:"basketOrder,omitempty"`
+}
+
+type FiscalizationItem struct {
+	Name  string `json:"name"`
+	Qty   int64  `json:"qty"`
+	Sum   int64  `json:"sum"`
+	Total int64  `json:"total"`
+	Unit  string `json:"unit,omitempty"`
+	Code  string `json:"code,omitempty"`
 }
 
 func (c *Client) CreateInvoice(ctx context.Context, in CreateInvoiceInput) (InvoiceResponse, error) {
+	customerEmails := []string(nil)
+	if in.CustomerEmail != nil {
+		if email := strings.TrimSpace(*in.CustomerEmail); email != "" {
+			customerEmails = []string{email}
+		}
+	}
 	body := createInvoiceBody{
 		Amount:   in.AmountMinor,
 		Ccy:      CurrencyCode(in.Currency),
 		Validity: in.ValiditySeconds,
 		MerchantPaymInfo: merchantPaymInfo{
-			Reference:   in.Reference,
-			Destination: in.Description,
-			Comment:     fmt.Sprintf("%s: %s", in.CustomerName, in.Description),
+			Reference:      in.Reference,
+			Destination:    in.Description,
+			Comment:        fmt.Sprintf("%s: %s", in.CustomerName, in.Description),
+			CustomerEmails: customerEmails,
+			BasketOrder:    in.FiscalItems,
 		},
 		RedirectURL: in.RedirectURL,
 		WebHookURL:  in.WebhookURL,
@@ -340,6 +375,18 @@ func (c *Client) CreateInvoice(ctx context.Context, in CreateInvoiceInput) (Invo
 		return InvoiceResponse{}, err
 	}
 	return resp, nil
+}
+
+func (c *Client) FetchFiscalChecks(ctx context.Context, invoiceID string) ([]FiscalCheck, error) {
+	var resp fiscalChecksResponse
+	if err := c.do(ctx, requestInput{
+		Method:       http.MethodGet,
+		Path:         "invoice/fiscal-checks",
+		SearchParams: map[string]string{"invoiceId": invoiceID},
+	}, &resp); err != nil {
+		return nil, err
+	}
+	return resp.Checks, nil
 }
 
 func (c *Client) RemoveInvoice(ctx context.Context, invoiceID string) (InvoiceRemovalResponse, error) {

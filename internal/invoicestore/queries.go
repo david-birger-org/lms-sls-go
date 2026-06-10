@@ -384,6 +384,50 @@ func SelectPaymentHistoryRowByInvoiceID(ctx context.Context, invoiceID string) (
 	return &list[0], nil
 }
 
+func SelectPaymentForFiscalSync(ctx context.Context, invoiceID, reference *string) (*PaymentFiscalSyncRow, error) {
+	pool, err := db.Pool(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var row PaymentFiscalSyncRow
+	switch {
+	case invoiceID != nil && reference != nil:
+		err = pool.QueryRow(ctx, `
+			select id, invoice_id, product_slug
+			from payments
+			where invoice_id = $1
+			   or reference = $2
+			order by updated_at desc, created_at desc
+			limit 1
+		`, *invoiceID, *reference).Scan(&row.ID, &row.InvoiceID, &row.ProductSlug)
+	case invoiceID != nil:
+		err = pool.QueryRow(ctx, `
+			select id, invoice_id, product_slug
+			from payments
+			where invoice_id = $1
+			order by updated_at desc, created_at desc
+			limit 1
+		`, *invoiceID).Scan(&row.ID, &row.InvoiceID, &row.ProductSlug)
+	case reference != nil:
+		err = pool.QueryRow(ctx, `
+			select id, invoice_id, product_slug
+			from payments
+			where reference = $1
+			order by updated_at desc, created_at desc
+			limit 1
+		`, *reference).Scan(&row.ID, &row.InvoiceID, &row.ProductSlug)
+	default:
+		return nil, nil
+	}
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &row, nil
+}
+
 func UpdateInvoiceCancelled(ctx context.Context, invoiceID string, providerPayload any) error {
 	pool, err := db.Pool(ctx)
 	if err != nil {

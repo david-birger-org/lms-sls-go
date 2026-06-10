@@ -10,6 +10,8 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/apexwoot/lms-sls-go/internal/externalcheckout"
+	"github.com/apexwoot/lms-sls-go/internal/fiscalchecks"
 	"github.com/apexwoot/lms-sls-go/internal/monobank"
 	"github.com/apexwoot/lms-sls-go/internal/payments"
 	"github.com/apexwoot/lms-sls-go/internal/userfeatures"
@@ -229,6 +231,9 @@ func SyncMonobankPaymentStatus(ctx context.Context, status monobank.InvoiceStatu
 		if err := maybeGrantProductFeatures(ctx, invoiceID, reference); err != nil {
 			slog.Warn("grant product features failed", "error", err.Error())
 		}
+		if err := maybeSyncFiscalChecks(ctx, invoiceID, reference); err != nil {
+			slog.Warn("sync fiscal checks failed", "error", err.Error())
+		}
 	}
 	return nil
 }
@@ -246,6 +251,24 @@ func maybeGrantProductFeatures(ctx context.Context, invoiceID, reference *string
 		Feature:   "lectures",
 		PaymentID: &payment.ID,
 	})
+}
+
+func maybeSyncFiscalChecks(ctx context.Context, invoiceID, reference *string) error {
+	payment, err := SelectPaymentForFiscalSync(ctx, invoiceID, reference)
+	if err != nil || payment == nil {
+		return err
+	}
+	if payment.ProductSlug == nil || *payment.ProductSlug != externalcheckout.ParticipationProductSlug {
+		return nil
+	}
+	if payment.InvoiceID == nil || strings.TrimSpace(*payment.InvoiceID) == "" {
+		return nil
+	}
+	checks, err := monobank.NewClient().FetchFiscalChecks(ctx, *payment.InvoiceID)
+	if err != nil {
+		return err
+	}
+	return fiscalchecks.UpsertForPayment(ctx, payment.ID, *payment.InvoiceID, checks)
 }
 
 func parseProviderTimestamp(value string) *time.Time {

@@ -30,9 +30,10 @@ func MustRequired(name string) string {
 	return v
 }
 
-func DatabaseURL() (string, error) { return Required("DATABASE_URL") }
-func InternalAPIKey() (string, error) { return Required("INTERNAL_API_KEY") }
-func MonobankToken() (string, error)  { return Required("MONOBANK_TOKEN") }
+func DatabaseURL() (string, error)        { return Required("DATABASE_URL") }
+func InternalAPIKey() (string, error)     { return Required("INTERNAL_API_KEY") }
+func MonobankToken() (string, error)      { return Required("MONOBANK_TOKEN") }
+func WnbfCheckoutSecret() (string, error) { return Required("WNBF_CHECKOUT_SECRET") }
 
 // PublicAPIKey is an optional, narrowly-scoped key accepted only on the
 // public service endpoints (contact requests, transactional mail). When set,

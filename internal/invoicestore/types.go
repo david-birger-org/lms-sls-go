@@ -24,22 +24,22 @@ type PendingPaymentRow struct {
 }
 
 type PaymentHistoryRow struct {
-	AmountMinor       int64
-	CreatedAt         time.Time
-	Currency          monobank.SupportedCurrency
-	CustomerName      string
-	Description       string
-	ExpiresAt         *time.Time
-	FailureReason     *string
-	ProfitAmountMinor *int64
-	InvoiceID         *string
-	PageURL           *string
-	PaymentInfoJSON   []byte
-	ProductSlug       *string
+	AmountMinor        int64
+	CreatedAt          time.Time
+	Currency           monobank.SupportedCurrency
+	CustomerName       string
+	Description        string
+	ExpiresAt          *time.Time
+	FailureReason      *string
+	ProfitAmountMinor  *int64
+	InvoiceID          *string
+	PageURL            *string
+	PaymentInfoJSON    []byte
+	ProductSlug        *string
 	ProviderModifiedAt *time.Time
-	ProviderStatus    *string
-	Reference         string
-	Status            payments.Status
+	ProviderStatus     *string
+	Reference          string
+	Status             payments.Status
 }
 
 type PendingInvoiceCreation struct {
@@ -131,22 +131,28 @@ type MarkInvoiceCreationFailedInput struct {
 }
 
 type ProviderStateUpdateInput struct {
-	AmountMinor       *int64
-	Currency          *monobank.SupportedCurrency
-	FailureReason     *string
-	ProfitAmountMinor *int64
-	InvoiceID         *string
-	PaymentInfo       *monobank.PaymentInfo
+	AmountMinor        *int64
+	Currency           *monobank.SupportedCurrency
+	FailureReason      *string
+	ProfitAmountMinor  *int64
+	InvoiceID          *string
+	PaymentInfo        *monobank.PaymentInfo
 	ProviderModifiedAt *time.Time
-	ProviderPayload   any
-	ProviderStatus    *string
-	Reference         *string
-	Status            *payments.Status
+	ProviderPayload    any
+	ProviderStatus     *string
+	Reference          *string
+	Status             *payments.Status
 }
 
 type PaymentFeatureGrantRow struct {
 	ID          string
 	UserID      string
+	ProductSlug *string
+}
+
+type PaymentFiscalSyncRow struct {
+	ID          string
+	InvoiceID   *string
 	ProductSlug *string
 }
 

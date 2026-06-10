@@ -13,8 +13,10 @@ import (
 type CreateStoredMonobankInvoiceInput struct {
 	AmountMinor     int64
 	Currency        monobank.SupportedCurrency
+	CustomerEmail   *string
 	CustomerName    string
 	Description     string
+	FiscalItems     []monobank.FiscalizationItem
 	PendingInvoice  PendingInvoiceCreation
 	RedirectURL     string
 	RequestURL      string
@@ -56,8 +58,10 @@ func CreateStoredMonobankInvoice(ctx context.Context, in CreateStoredMonobankInv
 	invoice, err := client.CreateInvoice(ctx, monobank.CreateInvoiceInput{
 		AmountMinor:     in.AmountMinor,
 		Currency:        in.Currency,
+		CustomerEmail:   in.CustomerEmail,
 		CustomerName:    in.CustomerName,
 		Description:     in.Description,
+		FiscalItems:     in.FiscalItems,
 		RedirectURL:     in.RedirectURL,
 		Reference:       in.PendingInvoice.Reference,
 		ValiditySeconds: in.ValiditySeconds,
