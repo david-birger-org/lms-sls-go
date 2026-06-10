@@ -1,6 +1,6 @@
 module github.com/apexwoot/lms-sls-go
 
-go 1.26
+go 1.25.0
 
 require (
 	github.com/gin-gonic/gin v1.12.0
