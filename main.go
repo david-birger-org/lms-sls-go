@@ -50,6 +50,9 @@ func newRouter() *gin.Engine {
 	paymentsAdmin := api.Group("/payments", auth.RequireAdmin())
 	paymentsAdmin.GET("/history", handlers.PaymentsHistory)
 
+	registrationPaymentsAdmin := api.Group("/registration-payments", auth.RequireAdmin())
+	registrationPaymentsAdmin.GET("", handlers.RegistrationPaymentsList)
+
 	api.GET("/products", handlers.ProductsList)
 
 	productsAdmin := api.Group("/products/admin", auth.RequireAdmin())
