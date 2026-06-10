@@ -192,6 +192,14 @@ func NewClient() *Client {
 	}
 }
 
+func NewClientWithToken(token string) *Client {
+	return &Client{
+		httpClient: &http.Client{Timeout: 30 * time.Second},
+		baseURL:    baseURL,
+		tokenFn:    func() (string, error) { return strings.TrimSpace(token), nil },
+	}
+}
+
 type requestInput struct {
 	Method       string
 	Path         string

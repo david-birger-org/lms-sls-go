@@ -17,35 +17,71 @@ import (
 	"github.com/apexwoot/lms-sls-go/internal/products"
 )
 
-const externalRegistrationSource = "wnbf"
+const (
+	externalRegistrationSource     = "wnbf"
+	externalTestRegistrationSource = "wnbf-test"
+)
 
 type externalCheckoutBody struct {
 	Payload string `json:"payload"`
 	Sig     string `json:"sig"`
 }
 
+type externalCheckoutMode struct {
+	Client            *monobank.Client
+	IdempotencyPrefix string
+	Name              string
+	Source            string
+	Test              bool
+}
+
 func ExternalCheckout(c *gin.Context) {
+	handleExternalCheckout(c, externalCheckoutMode{
+		IdempotencyPrefix: "wnbf:",
+		Name:              "production",
+		Source:            externalRegistrationSource,
+	})
+}
+
+func ExternalCheckoutTest(c *gin.Context) {
+	token, err := env.MonobankTestToken()
+	if err != nil {
+		slog.Error("external checkout test token missing", "error", err.Error())
+		httpx.Error(c, http.StatusInternalServerError, err.Error())
+		return
+	}
+	handleExternalCheckout(c, externalCheckoutMode{
+		Client:            monobank.NewClientWithToken(token),
+		IdempotencyPrefix: "wnbf-test:",
+		Name:              "test",
+		Source:            externalTestRegistrationSource,
+		Test:              true,
+	})
+}
+
+func handleExternalCheckout(c *gin.Context, mode externalCheckoutMode) {
 	ctx := c.Request.Context()
 
 	var body externalCheckoutBody
 	if err := c.ShouldBindJSON(&body); err != nil {
-		slog.Warn("external checkout invalid json", "error", err.Error())
+		slog.Warn("external checkout invalid json", "mode", mode.Name, "error", err.Error())
 		httpx.Error(c, http.StatusBadRequest, "Request body must be valid JSON.")
 		return
 	}
 	secret, err := env.WnbfCheckoutSecret()
 	if err != nil {
-		slog.Error("external checkout secret missing", "error", err.Error())
+		slog.Error("external checkout secret missing", "mode", mode.Name, "error", err.Error())
 		httpx.Error(c, http.StatusInternalServerError, err.Error())
 		return
 	}
 	payload, rawPayload, err := externalcheckout.Verify(body.Payload, body.Sig, secret)
 	if err != nil {
-		slog.Warn("external checkout verification failed", "error", err.Error())
+		slog.Warn("external checkout verification failed", "mode", mode.Name, "error", err.Error())
 		httpx.Error(c, http.StatusBadRequest, err.Error())
 		return
 	}
 	slog.Info("external checkout verified",
+		"mode", mode.Name,
 		"external_ref", payload.ExternalRef,
 		"product_slug", payload.ProductSlug,
 		"amount_minor", payload.AmountMinor,
@@ -54,6 +90,7 @@ func ExternalCheckout(c *gin.Context) {
 	product, err := products.SelectBySlug(ctx, payload.ProductSlug)
 	if err != nil {
 		slog.Error("external checkout product lookup failed",
+			"mode", mode.Name,
 			"external_ref", payload.ExternalRef,
 			"product_slug", payload.ProductSlug,
 			"error", err.Error(),
@@ -63,6 +100,7 @@ func ExternalCheckout(c *gin.Context) {
 	}
 	if product == nil {
 		slog.Warn("external checkout product not found",
+			"mode", mode.Name,
 			"external_ref", payload.ExternalRef,
 			"product_slug", payload.ProductSlug,
 		)
@@ -71,6 +109,7 @@ func ExternalCheckout(c *gin.Context) {
 	}
 	if product.PricingType != products.PricingOnRequest {
 		slog.Warn("external checkout product has invalid pricing",
+			"mode", mode.Name,
 			"external_ref", payload.ExternalRef,
 			"product_slug", payload.ProductSlug,
 			"pricing_type", product.PricingType,
@@ -79,10 +118,11 @@ func ExternalCheckout(c *gin.Context) {
 		return
 	}
 
-	idempotencyKey := "wnbf:" + strings.TrimSpace(payload.ExternalRef)
+	idempotencyKey := mode.IdempotencyPrefix + strings.TrimSpace(payload.ExternalRef)
 	existing, err := invoicestore.FindPaymentByIdempotencyKey(ctx, idempotencyKey)
 	if err != nil {
 		slog.Error("external checkout idempotency lookup failed",
+			"mode", mode.Name,
 			"external_ref", payload.ExternalRef,
 			"error", err.Error(),
 		)
@@ -91,6 +131,7 @@ func ExternalCheckout(c *gin.Context) {
 	}
 	if existing != nil && existing.InvoiceID != nil && existing.PageURL != nil {
 		slog.Info("external checkout reused invoice",
+			"mode", mode.Name,
 			"external_ref", payload.ExternalRef,
 			"payment_id", existing.ID,
 			"invoice_id", *existing.InvoiceID,
@@ -102,11 +143,13 @@ func ExternalCheckout(c *gin.Context) {
 			"pageUrl":   *existing.PageURL,
 			"paymentId": existing.ID,
 			"reused":    true,
+			"test":      mode.Test,
 		})
 		return
 	}
 	if existing != nil {
 		slog.Warn("external checkout existing payment without invoice",
+			"mode", mode.Name,
 			"external_ref", payload.ExternalRef,
 			"payment_id", existing.ID,
 			"status", existing.Status,
@@ -135,6 +178,7 @@ func ExternalCheckout(c *gin.Context) {
 	})
 	if err != nil {
 		slog.Error("external checkout pending invoice insert failed",
+			"mode", mode.Name,
 			"external_ref", payload.ExternalRef,
 			"error", err.Error(),
 		)
@@ -142,6 +186,7 @@ func ExternalCheckout(c *gin.Context) {
 		return
 	}
 	slog.Info("external checkout pending invoice created",
+		"mode", mode.Name,
 		"external_ref", payload.ExternalRef,
 		"payment_id", pending.PaymentID,
 	)
@@ -149,6 +194,7 @@ func ExternalCheckout(c *gin.Context) {
 	var rawJSON map[string]any
 	if err := json.Unmarshal(rawPayload, &rawJSON); err != nil {
 		slog.Error("external checkout raw payload decode failed",
+			"mode", mode.Name,
 			"external_ref", payload.ExternalRef,
 			"payment_id", pending.PaymentID,
 			"error", err.Error(),
@@ -158,13 +204,14 @@ func ExternalCheckout(c *gin.Context) {
 	}
 	if err := externalregistrations.Upsert(ctx, externalregistrations.UpsertInput{
 		PaymentID:     pending.PaymentID,
-		Source:        externalRegistrationSource,
+		Source:        mode.Source,
 		ExternalRef:   strings.TrimSpace(payload.ExternalRef),
 		CustomerName:  customerName,
 		CustomerEmail: customerEmail,
 		RawPayload:    rawJSON,
 	}); err != nil {
 		slog.Error("external checkout registration upsert failed",
+			"mode", mode.Name,
 			"external_ref", payload.ExternalRef,
 			"payment_id", pending.PaymentID,
 			"error", err.Error(),
@@ -173,12 +220,14 @@ func ExternalCheckout(c *gin.Context) {
 		return
 	}
 	slog.Info("external checkout registration stored",
+		"mode", mode.Name,
 		"external_ref", payload.ExternalRef,
 		"payment_id", pending.PaymentID,
 	)
 
 	result := invoicestore.CreateStoredMonobankInvoice(ctx, invoicestore.CreateStoredMonobankInvoiceInput{
 		AmountMinor:   payload.AmountMinor,
+		Client:        mode.Client,
 		Currency:      monobank.CurrencyUAH,
 		CustomerEmail: &customerEmail,
 		CustomerName:  customerName,
@@ -200,6 +249,7 @@ func ExternalCheckout(c *gin.Context) {
 	})
 	if !result.OK {
 		slog.Error("external checkout monobank invoice create failed",
+			"mode", mode.Name,
 			"external_ref", payload.ExternalRef,
 			"payment_id", pending.PaymentID,
 			"status", result.Status,
@@ -209,6 +259,7 @@ func ExternalCheckout(c *gin.Context) {
 		return
 	}
 	slog.Info("external checkout monobank invoice created",
+		"mode", mode.Name,
 		"external_ref", payload.ExternalRef,
 		"payment_id", result.Value.PaymentID,
 		"invoice_id", result.Value.InvoiceID,
@@ -218,5 +269,6 @@ func ExternalCheckout(c *gin.Context) {
 		"invoiceId": result.Value.InvoiceID,
 		"pageUrl":   result.Value.PageURL,
 		"paymentId": result.Value.PaymentID,
+		"test":      mode.Test,
 	})
 }

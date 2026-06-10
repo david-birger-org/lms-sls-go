@@ -37,6 +37,7 @@ func newRouter() *gin.Engine {
 	api.POST("/internal/app-users/upsert", auth.RequireInternalKey(), handlers.InternalAppUsersUpsert)
 	api.POST("/mail/transactional", auth.RequireServiceKey(), handlers.MailTransactional)
 	api.POST("/external/checkout", auth.RequireInternalKey(), handlers.ExternalCheckout)
+	api.POST("/external/checkout/test", auth.RequireInternalKey(), handlers.ExternalCheckoutTest)
 
 	mbAdmin := api.Group("/monobank", auth.RequireAdmin())
 	mbAdmin.POST("/invoice", handlers.MonobankInvoiceCreate)

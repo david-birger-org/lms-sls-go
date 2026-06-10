@@ -33,6 +33,7 @@ func MustRequired(name string) string {
 func DatabaseURL() (string, error)        { return Required("DATABASE_URL") }
 func InternalAPIKey() (string, error)     { return Required("INTERNAL_API_KEY") }
 func MonobankToken() (string, error)      { return Required("MONOBANK_TOKEN") }
+func MonobankTestToken() (string, error)  { return Required("MONOBANK_TEST_TOKEN") }
 func WnbfCheckoutSecret() (string, error) { return Required("WNBF_CHECKOUT_SECRET") }
 
 // PublicAPIKey is an optional, narrowly-scoped key accepted only on the
