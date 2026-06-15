@@ -20,6 +20,8 @@ import (
 const (
 	externalRegistrationSource     = "wnbf"
 	externalTestRegistrationSource = "wnbf-test"
+	participationFeeProductSlug    = "participation-fee"
+	participationFeeDescription    = "Оплата участі в турнірі"
 )
 
 type externalCheckoutBody struct {
@@ -33,6 +35,17 @@ type externalCheckoutMode struct {
 	Name              string
 	Source            string
 	Test              bool
+}
+
+func externalCheckoutDescription(product products.Row) string {
+	if product.Slug == participationFeeProductSlug {
+		return participationFeeDescription
+	}
+	description := product.NameUk
+	if strings.TrimSpace(description) == "" {
+		description = product.NameEn
+	}
+	return description
 }
 
 func ExternalCheckout(c *gin.Context) {
@@ -160,10 +173,7 @@ func handleExternalCheckout(c *gin.Context, mode externalCheckoutMode) {
 
 	customerEmail := strings.TrimSpace(payload.CustomerEmail)
 	customerName := strings.TrimSpace(payload.CustomerName)
-	description := product.NameUk
-	if strings.TrimSpace(description) == "" {
-		description = product.NameEn
-	}
+	description := externalCheckoutDescription(*product)
 	productSlug := product.Slug
 
 	pending, err := invoicestore.CreatePendingInvoice(ctx, invoicestore.CreatePendingInvoiceInput{
