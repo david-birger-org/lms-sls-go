@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -75,9 +76,22 @@ func serviceKeyValid(key string) bool {
 	return false
 }
 
-func requireKey(valid func(string) bool) gin.HandlerFunc {
+func logAuthRejected(c *gin.Context, authType string, status int, reason string) {
+	slog.WarnContext(c.Request.Context(), "request rejected by auth",
+		"auth", authType,
+		"reason", reason,
+		"status", status,
+		"method", c.Request.Method,
+		"path", c.Request.URL.Path,
+		"client_ip", c.ClientIP(),
+		"has_internal_key", trimmedHeader(c, HeaderInternalAPIKey) != "",
+	)
+}
+
+func requireKey(authType string, valid func(string) bool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if !valid(trimmedHeader(c, HeaderInternalAPIKey)) {
+			logAuthRejected(c, authType, http.StatusUnauthorized, "missing_or_invalid_internal_key")
 			httpx.Error(c, http.StatusUnauthorized, "Unauthorized.")
 			c.Abort()
 			return
@@ -88,23 +102,29 @@ func requireKey(valid func(string) bool) gin.HandlerFunc {
 
 // RequireInternalKey gates an endpoint on the admin-capable INTERNAL_API_KEY
 // without requiring trusted admin/user headers.
-func RequireInternalKey() gin.HandlerFunc { return requireKey(internalKeyValid) }
+func RequireInternalKey() gin.HandlerFunc {
+	return requireKey("internal_key", internalKeyValid)
+}
 
 // RequireServiceKey gates public service endpoints on either the internal or
 // the public key.
-func RequireServiceKey() gin.HandlerFunc { return requireKey(serviceKeyValid) }
+func RequireServiceKey() gin.HandlerFunc {
+	return requireKey("service_key", serviceKeyValid)
+}
 
 func RequireAdminWith(provider InternalKeyProvider) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		key := trimmedHeader(c, HeaderInternalAPIKey)
 		expected := provider()
 		if key == "" || key != expected {
+			logAuthRejected(c, "admin", http.StatusUnauthorized, "missing_or_invalid_internal_key")
 			httpx.Error(c, http.StatusUnauthorized, "Unauthorized.")
 			c.Abort()
 			return
 		}
 		userID := trimmedHeader(c, HeaderAdminUserID)
 		if userID == "" {
+			logAuthRejected(c, "admin", http.StatusBadRequest, "missing_trusted_admin_headers")
 			httpx.Error(c, http.StatusBadRequest, "Trusted admin headers are missing.")
 			c.Abort()
 			return
@@ -129,12 +149,14 @@ func RequireUserWith(provider InternalKeyProvider) gin.HandlerFunc {
 		key := trimmedHeader(c, HeaderInternalAPIKey)
 		expected := provider()
 		if key == "" || key != expected {
+			logAuthRejected(c, "user", http.StatusUnauthorized, "missing_or_invalid_internal_key")
 			httpx.Error(c, http.StatusUnauthorized, "Unauthorized.")
 			c.Abort()
 			return
 		}
 		userID := trimmedHeader(c, HeaderUserID)
 		if userID == "" {
+			logAuthRejected(c, "user", http.StatusBadRequest, "missing_trusted_user_headers")
 			httpx.Error(c, http.StatusBadRequest, "Trusted user headers are missing.")
 			c.Abort()
 			return

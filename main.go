@@ -3,10 +3,12 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"syscall"
 	"time"
 
@@ -16,13 +18,90 @@ import (
 	"github.com/apexwoot/lms-sls-go/internal/auth"
 	"github.com/apexwoot/lms-sls-go/internal/db"
 	"github.com/apexwoot/lms-sls-go/internal/handlers"
+	"github.com/apexwoot/lms-sls-go/internal/httpx"
 )
+
+func configureLogger() {
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	})))
+}
+
+func requestLogger() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		start := time.Now()
+		c.Next()
+
+		status := c.Writer.Status()
+		level := slog.LevelInfo
+		if status >= http.StatusInternalServerError {
+			level = slog.LevelError
+		} else if status >= http.StatusBadRequest {
+			level = slog.LevelWarn
+		}
+
+		attrs := []any{
+			"method", c.Request.Method,
+			"path", c.Request.URL.Path,
+			"route", c.FullPath(),
+			"status", status,
+			"latency_ms", float64(time.Since(start).Microseconds()) / 1000,
+			"response_bytes", c.Writer.Size(),
+			"client_ip", c.ClientIP(),
+			"host", c.Request.Host,
+			"user_agent", c.Request.UserAgent(),
+		}
+		if requestID := firstHeader(c.Request, "x-vercel-id", "x-request-id"); requestID != "" {
+			attrs = append(attrs, "request_id", requestID)
+		}
+		if message, ok := httpx.ResponseError(c); ok {
+			attrs = append(attrs, "error", message)
+		}
+		if len(c.Errors) > 0 {
+			attrs = append(attrs, "gin_errors", c.Errors.String())
+		}
+
+		slog.Log(c.Request.Context(), level, "http request", attrs...)
+	}
+}
+
+func recoveryLogger() gin.HandlerFunc {
+	return gin.CustomRecovery(func(c *gin.Context, recovered any) {
+		slog.ErrorContext(c.Request.Context(), "panic recovered",
+			"panic", fmt.Sprint(recovered),
+			"method", c.Request.Method,
+			"path", c.Request.URL.Path,
+			"route", c.FullPath(),
+			"client_ip", c.ClientIP(),
+			"host", c.Request.Host,
+			"user_agent", c.Request.UserAgent(),
+			"stack", string(debug.Stack()),
+		)
+		httpx.Error(c, http.StatusInternalServerError, "Internal server error.")
+	})
+}
+
+func firstHeader(r *http.Request, names ...string) string {
+	for _, name := range names {
+		if value := r.Header.Get(name); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func jsonError(status int, message string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		httpx.Error(c, status, message)
+	}
+}
 
 func newRouter() *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
-	r.Use(gin.Recovery())
-	r.Use(gin.LoggerWithWriter(gin.DefaultWriter, "/healthz"))
+	r.HandleMethodNotAllowed = true
+	r.Use(requestLogger())
+	r.Use(recoveryLogger())
 
 	r.GET("/healthz", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"ok": true}) })
 
@@ -66,10 +145,15 @@ func newRouter() *gin.Engine {
 	user.GET("/lectures", handlers.UserLectures)
 	user.GET("/purchases", handlers.UserPurchases)
 
+	r.NoRoute(jsonError(http.StatusNotFound, "Not found."))
+	r.NoMethod(jsonError(http.StatusMethodNotAllowed, "Method not allowed."))
+
 	return r
 }
 
 func main() {
+	configureLogger()
+
 	for _, name := range []string{".env.local", ".env"} {
 		if err := godotenv.Load(name); err == nil {
 			slog.Info("loaded env file", "file", name)
