@@ -49,27 +49,50 @@ func externalCheckoutDescription(product products.Row) string {
 }
 
 func ExternalCheckout(c *gin.Context) {
-	handleExternalCheckout(c, externalCheckoutMode{
+	mode := externalCheckoutMode{
 		IdempotencyPrefix: "wnbf:",
 		Name:              "production",
 		Source:            externalRegistrationSource,
-	})
+	}
+	logExternalCheckoutRequest(c, mode)
+	handleExternalCheckout(c, mode)
 }
 
 func ExternalCheckoutTest(c *gin.Context) {
-	token, err := env.MonobankTestToken()
-	if err != nil {
-		slog.Error("external checkout test token missing", "error", err.Error())
-		httpx.Error(c, http.StatusInternalServerError, err.Error())
-		return
-	}
-	handleExternalCheckout(c, externalCheckoutMode{
-		Client:            monobank.NewClientWithToken(token),
+	mode := externalCheckoutMode{
 		IdempotencyPrefix: "wnbf-test:",
 		Name:              "test",
 		Source:            externalTestRegistrationSource,
 		Test:              true,
-	})
+	}
+	logExternalCheckoutRequest(c, mode)
+
+	token, err := env.MonobankTestToken()
+	if err != nil {
+		slog.ErrorContext(c.Request.Context(), "external checkout test token missing",
+			"mode", mode.Name,
+			"test", mode.Test,
+			"path", c.Request.URL.Path,
+			"error", err.Error(),
+		)
+		httpx.Error(c, http.StatusInternalServerError, err.Error())
+		return
+	}
+	mode.Client = monobank.NewClientWithToken(token)
+	handleExternalCheckout(c, mode)
+}
+
+func logExternalCheckoutRequest(c *gin.Context, mode externalCheckoutMode) {
+	slog.InfoContext(c.Request.Context(), "external checkout request received",
+		"mode", mode.Name,
+		"test", mode.Test,
+		"method", c.Request.Method,
+		"path", c.Request.URL.Path,
+		"route", c.FullPath(),
+		"client_ip", c.ClientIP(),
+		"host", c.Request.Host,
+		"user_agent", c.Request.UserAgent(),
+	)
 }
 
 func handleExternalCheckout(c *gin.Context, mode externalCheckoutMode) {
