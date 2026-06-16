@@ -21,7 +21,7 @@ const (
 	externalRegistrationSource     = "wnbf"
 	externalTestRegistrationSource = "wnbf-test"
 	participationFeeProductSlug    = "participation-fee"
-	participationFeeDescription    = "Оплата участі в турнірі"
+	participationFeeDescription    = "Оплата участі в спортивному заході"
 )
 
 type externalCheckoutBody struct {
