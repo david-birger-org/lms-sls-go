@@ -63,37 +63,39 @@ type PendingInvoiceRecord struct {
 }
 
 type PaymentHistoryRecord struct {
-	Amount       int64                      `json:"amount"`
-	Ccy          monobank.SupportedCurrency `json:"ccy"`
-	CustomerName string                     `json:"customerName"`
-	Date         time.Time                  `json:"date"`
-	Destination  string                     `json:"destination"`
-	Error        *string                    `json:"error,omitempty"`
-	ExpiresAt    *time.Time                 `json:"expiresAt,omitempty"`
-	InvoiceID    *string                    `json:"invoiceId,omitempty"`
-	MaskedPan    *string                    `json:"maskedPan,omitempty"`
-	PageURL      *string                    `json:"pageUrl,omitempty"`
-	ProductSlug  *string                    `json:"productSlug,omitempty"`
-	Reference    string                     `json:"reference"`
-	Status       *payments.Status           `json:"status,omitempty"`
+	Amount         int64                      `json:"amount"`
+	Ccy            monobank.SupportedCurrency `json:"ccy"`
+	CustomerName   string                     `json:"customerName"`
+	Date           time.Time                  `json:"date"`
+	Destination    string                     `json:"destination"`
+	Error          *string                    `json:"error,omitempty"`
+	ExpiresAt      *time.Time                 `json:"expiresAt,omitempty"`
+	InvoiceID      *string                    `json:"invoiceId,omitempty"`
+	MaskedPan      *string                    `json:"maskedPan,omitempty"`
+	PageURL        *string                    `json:"pageUrl,omitempty"`
+	ProductSlug    *string                    `json:"productSlug,omitempty"`
+	ProviderStatus *string                    `json:"providerStatus,omitempty"`
+	Reference      string                     `json:"reference"`
+	Status         *payments.Status           `json:"status,omitempty"`
 }
 
 type PaymentDetailsRecord struct {
-	Amount        int64                      `json:"amount"`
-	CreatedDate   time.Time                  `json:"createdDate"`
-	Ccy           monobank.SupportedCurrency `json:"ccy"`
-	CustomerName  string                     `json:"customerName"`
-	Destination   string                     `json:"destination"`
-	ExpiresAt     *time.Time                 `json:"expiresAt,omitempty"`
-	FailureReason *string                    `json:"failureReason,omitempty"`
-	ProfitAmount  *int64                     `json:"profitAmount,omitempty"`
-	InvoiceID     *string                    `json:"invoiceId,omitempty"`
-	ModifiedDate  *time.Time                 `json:"modifiedDate,omitempty"`
-	PageURL       *string                    `json:"pageUrl,omitempty"`
-	PaymentInfo   *monobank.PaymentInfo      `json:"paymentInfo,omitempty"`
-	ProductSlug   *string                    `json:"productSlug,omitempty"`
-	Reference     string                     `json:"reference"`
-	Status        *payments.Status           `json:"status,omitempty"`
+	Amount         int64                      `json:"amount"`
+	CreatedDate    time.Time                  `json:"createdDate"`
+	Ccy            monobank.SupportedCurrency `json:"ccy"`
+	CustomerName   string                     `json:"customerName"`
+	Destination    string                     `json:"destination"`
+	ExpiresAt      *time.Time                 `json:"expiresAt,omitempty"`
+	FailureReason  *string                    `json:"failureReason,omitempty"`
+	ProfitAmount   *int64                     `json:"profitAmount,omitempty"`
+	InvoiceID      *string                    `json:"invoiceId,omitempty"`
+	ModifiedDate   *time.Time                 `json:"modifiedDate,omitempty"`
+	PageURL        *string                    `json:"pageUrl,omitempty"`
+	PaymentInfo    *monobank.PaymentInfo      `json:"paymentInfo,omitempty"`
+	ProductSlug    *string                    `json:"productSlug,omitempty"`
+	ProviderStatus *string                    `json:"providerStatus,omitempty"`
+	Reference      string                     `json:"reference"`
+	Status         *payments.Status           `json:"status,omitempty"`
 }
 
 type MirrorAuthUserInput struct {

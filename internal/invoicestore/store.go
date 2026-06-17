@@ -51,6 +51,42 @@ func CleanNullableText(value any) *string {
 	return nil
 }
 
+func logNullableText(value *string) any {
+	if value == nil {
+		return nil
+	}
+	return *value
+}
+
+func logPaymentStatus(value *payments.Status) any {
+	if value == nil {
+		return nil
+	}
+	return string(*value)
+}
+
+func paymentInfoCountry(info *monobank.PaymentInfo) any {
+	if info == nil {
+		return nil
+	}
+	country := strings.TrimSpace(info.Country)
+	if country == "" {
+		return nil
+	}
+	return country
+}
+
+func paymentInfoMethod(info *monobank.PaymentInfo) any {
+	if info == nil {
+		return nil
+	}
+	method := strings.TrimSpace(info.PaymentMethod)
+	if method == "" {
+		return nil
+	}
+	return method
+}
+
 func MirrorAuthUser(ctx context.Context, in MirrorAuthUserInput) (string, error) {
 	email := CleanNullableText(stringOrNil(in.Email))
 	fullName := CleanNullableText(in.FullName)
@@ -185,11 +221,28 @@ func SyncMonobankPaymentStatus(ctx context.Context, status monobank.InvoiceStatu
 	}
 
 	providerModifiedAt := parseProviderTimestamp(status.ModifiedDate)
+	slog.InfoContext(ctx, "monobank payment status received",
+		"invoice_id", logNullableText(invoiceID),
+		"reference", logNullableText(reference),
+		"provider_status", logNullableText(providerStatus),
+		"app_status", logPaymentStatus(normalizedStatus),
+		"provider_modified_at", providerModifiedAt,
+		"payment_country", paymentInfoCountry(status.PaymentInfo),
+		"payment_method", paymentInfoMethod(status.PaymentInfo),
+	)
 	existingModifiedAt, err := SelectLatestProviderState(ctx, invoiceID, reference)
 	if err != nil {
 		return err
 	}
 	if providerModifiedAt != nil && existingModifiedAt != nil && providerModifiedAt.Before(*existingModifiedAt) {
+		slog.InfoContext(ctx, "monobank payment status ignored stale",
+			"invoice_id", logNullableText(invoiceID),
+			"reference", logNullableText(reference),
+			"provider_status", logNullableText(providerStatus),
+			"app_status", logPaymentStatus(normalizedStatus),
+			"provider_modified_at", providerModifiedAt,
+			"existing_provider_modified_at", existingModifiedAt,
+		)
 		return nil
 	}
 
@@ -226,6 +279,15 @@ func SyncMonobankPaymentStatus(ctx context.Context, status monobank.InvoiceStatu
 	if err := UpdatePaymentProviderState(ctx, update); err != nil {
 		return err
 	}
+	slog.InfoContext(ctx, "monobank payment status synced",
+		"invoice_id", logNullableText(invoiceID),
+		"reference", logNullableText(reference),
+		"provider_status", logNullableText(providerStatus),
+		"app_status", logPaymentStatus(normalizedStatus),
+		"provider_modified_at", providerModifiedAt,
+		"payment_country", paymentInfoCountry(status.PaymentInfo),
+		"payment_method", paymentInfoMethod(status.PaymentInfo),
+	)
 
 	if normalizedStatus != nil && *normalizedStatus == payments.StatusPaid {
 		if err := maybeGrantProductFeatures(ctx, invoiceID, reference); err != nil {
@@ -327,18 +389,19 @@ func toPaymentHistoryRecord(row PaymentHistoryRow) PaymentHistoryRecord {
 		date = *row.ProviderModifiedAt
 	}
 	rec := PaymentHistoryRecord{
-		Amount:       row.AmountMinor,
-		Ccy:          row.Currency,
-		CustomerName: row.CustomerName,
-		Date:         date,
-		Destination:  row.Description,
-		Error:        row.FailureReason,
-		ExpiresAt:    row.ExpiresAt,
-		InvoiceID:    row.InvoiceID,
-		PageURL:      row.PageURL,
-		ProductSlug:  row.ProductSlug,
-		Reference:    row.Reference,
-		Status:       &status,
+		Amount:         row.AmountMinor,
+		Ccy:            row.Currency,
+		CustomerName:   row.CustomerName,
+		Date:           date,
+		Destination:    row.Description,
+		Error:          row.FailureReason,
+		ExpiresAt:      row.ExpiresAt,
+		InvoiceID:      row.InvoiceID,
+		PageURL:        row.PageURL,
+		ProductSlug:    row.ProductSlug,
+		ProviderStatus: row.ProviderStatus,
+		Reference:      row.Reference,
+		Status:         &status,
 	}
 	if info != nil && info.MaskedPan != "" {
 		mp := info.MaskedPan
@@ -362,21 +425,22 @@ func toPaymentDetailsRecord(row PaymentHistoryRow) PaymentDetailsRecord {
 		}
 	}
 	rec := PaymentDetailsRecord{
-		Amount:        row.AmountMinor,
-		CreatedDate:   row.CreatedAt,
-		Ccy:           row.Currency,
-		CustomerName:  row.CustomerName,
-		Destination:   row.Description,
-		ExpiresAt:     row.ExpiresAt,
-		FailureReason: row.FailureReason,
-		ProfitAmount:  row.ProfitAmountMinor,
-		InvoiceID:     row.InvoiceID,
-		ModifiedDate:  row.ProviderModifiedAt,
-		PageURL:       row.PageURL,
-		PaymentInfo:   info,
-		ProductSlug:   row.ProductSlug,
-		Reference:     row.Reference,
-		Status:        &status,
+		Amount:         row.AmountMinor,
+		CreatedDate:    row.CreatedAt,
+		Ccy:            row.Currency,
+		CustomerName:   row.CustomerName,
+		Destination:    row.Description,
+		ExpiresAt:      row.ExpiresAt,
+		FailureReason:  row.FailureReason,
+		ProfitAmount:   row.ProfitAmountMinor,
+		InvoiceID:      row.InvoiceID,
+		ModifiedDate:   row.ProviderModifiedAt,
+		PageURL:        row.PageURL,
+		PaymentInfo:    info,
+		ProductSlug:    row.ProductSlug,
+		ProviderStatus: row.ProviderStatus,
+		Reference:      row.Reference,
+		Status:         &status,
 	}
 	return rec
 }
