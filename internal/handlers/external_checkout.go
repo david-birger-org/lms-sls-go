@@ -22,6 +22,7 @@ const (
 	externalTestRegistrationSource = "wnbf-test"
 	participationFeeProductSlug    = "participation-fee"
 	participationFeeDescription    = "Оплата участі в спортивному заході"
+	duplicateParticipationMessage  = "This participant already has an active participation payment."
 )
 
 type externalCheckoutBody struct {
@@ -46,6 +47,16 @@ func externalCheckoutDescription(product products.Row) string {
 		description = product.NameEn
 	}
 	return description
+}
+
+func externalCheckoutCustomerPhone(raw map[string]any) string {
+	for _, key := range []string{"customerPhone", "phone", "billingPhone"} {
+		value, ok := raw[key].(string)
+		if ok && strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
 }
 
 func ExternalCheckout(c *gin.Context) {
@@ -199,6 +210,47 @@ func handleExternalCheckout(c *gin.Context, mode externalCheckoutMode) {
 	description := externalCheckoutDescription(*product)
 	productSlug := product.Slug
 
+	var rawJSON map[string]any
+	if err := json.Unmarshal(rawPayload, &rawJSON); err != nil {
+		slog.Error("external checkout raw payload decode failed",
+			"mode", mode.Name,
+			"external_ref", payload.ExternalRef,
+			"error", err.Error(),
+		)
+		httpx.Error(c, http.StatusInternalServerError, "Failed to decode external registration: "+err.Error())
+		return
+	}
+
+	duplicate, err := externalregistrations.FindActiveDuplicate(ctx, externalregistrations.ActiveDuplicateInput{
+		CustomerEmail: customerEmail,
+		CustomerName:  customerName,
+		CustomerPhone: externalCheckoutCustomerPhone(rawJSON),
+		ExternalRef:   strings.TrimSpace(payload.ExternalRef),
+		ProductSlug:   productSlug,
+		Source:        mode.Source,
+	})
+	if err != nil {
+		slog.Error("external checkout duplicate lookup failed",
+			"mode", mode.Name,
+			"external_ref", payload.ExternalRef,
+			"error", err.Error(),
+		)
+		httpx.Error(c, http.StatusInternalServerError, "Failed to create checkout: "+err.Error())
+		return
+	}
+	if duplicate != nil {
+		slog.Warn("external checkout duplicate participant blocked",
+			"mode", mode.Name,
+			"external_ref", payload.ExternalRef,
+			"duplicate_external_ref", duplicate.ExternalRef,
+			"duplicate_payment_id", duplicate.PaymentID,
+			"match_field", duplicate.MatchField,
+			"status", duplicate.Status,
+		)
+		httpx.Error(c, http.StatusConflict, duplicateParticipationMessage)
+		return
+	}
+
 	pending, err := invoicestore.CreatePendingInvoice(ctx, invoicestore.CreatePendingInvoiceInput{
 		AmountMinor:    payload.AmountMinor,
 		Currency:       monobank.CurrencyUAH,
@@ -224,17 +276,6 @@ func handleExternalCheckout(c *gin.Context, mode externalCheckoutMode) {
 		"payment_id", pending.PaymentID,
 	)
 
-	var rawJSON map[string]any
-	if err := json.Unmarshal(rawPayload, &rawJSON); err != nil {
-		slog.Error("external checkout raw payload decode failed",
-			"mode", mode.Name,
-			"external_ref", payload.ExternalRef,
-			"payment_id", pending.PaymentID,
-			"error", err.Error(),
-		)
-		httpx.Error(c, http.StatusInternalServerError, "Failed to store external registration: "+err.Error())
-		return
-	}
 	if err := externalregistrations.Upsert(ctx, externalregistrations.UpsertInput{
 		PaymentID:     pending.PaymentID,
 		Source:        mode.Source,
