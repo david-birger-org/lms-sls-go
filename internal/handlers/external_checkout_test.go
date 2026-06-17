@@ -35,6 +35,44 @@ func assertHandlerLogContains(t *testing.T, logs string, parts ...string) {
 	}
 }
 
+func TestExternalCheckoutCustomerPhone(t *testing.T) {
+	tests := []struct {
+		name string
+		raw  map[string]any
+		want string
+	}{
+		{
+			name: "customer phone",
+			raw:  map[string]any{"customerPhone": " +380 67 123 4567 "},
+			want: "+380 67 123 4567",
+		},
+		{
+			name: "phone fallback",
+			raw:  map[string]any{"phone": "+380501112233"},
+			want: "+380501112233",
+		},
+		{
+			name: "billing phone fallback",
+			raw:  map[string]any{"billingPhone": "+380931112233"},
+			want: "+380931112233",
+		},
+		{
+			name: "missing phone",
+			raw:  map[string]any{"customerName": "Test User"},
+			want: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := externalCheckoutCustomerPhone(tt.raw)
+			if got != tt.want {
+				t.Fatalf("phone: got %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestExternalCheckoutTestLogsRequestBeforeTokenLookup(t *testing.T) {
 	t.Setenv("MONOBANK_TEST_TOKEN", "")
 	logs := withHandlerTestLogger(t)
