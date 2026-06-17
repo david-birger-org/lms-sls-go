@@ -187,7 +187,7 @@ func UpdateInvoiceCreationFailed(ctx context.Context, in MarkInvoiceCreationFail
 			updated_at = timezone('utc', now())
 		where id = $4
 	`,
-		string(payments.StatusFailed),
+		string(payments.StatusCreationFailed),
 		in.ErrorMessage,
 		toJSONB(in.ProviderPayload),
 		in.PaymentID,
@@ -217,18 +217,25 @@ func SelectPendingPaymentRows(ctx context.Context, limit int) ([]PendingPaymentR
 			status
 		from payments
 		where invoice_id is not null
+		  and status not in ($6, $7, $8, $9, $10, $11)
 		  and (
-			status in ($1, $2)
-			or provider_status in ($3, $4, $5)
+			  status in ($1, $2)
+			  or provider_status in ($3, $4, $5)
 		  )
 		order by created_at desc
-		limit $6
+		limit $12
 	`,
 		string(payments.PendingStatuses[0]),
 		string(payments.PendingStatuses[1]),
 		payments.PendingMonobankProviderStatuses[0],
 		payments.PendingMonobankProviderStatuses[1],
 		payments.PendingMonobankProviderStatuses[2],
+		string(payments.TerminalStatuses[0]),
+		string(payments.TerminalStatuses[1]),
+		string(payments.TerminalStatuses[2]),
+		string(payments.TerminalStatuses[3]),
+		string(payments.TerminalStatuses[4]),
+		string(payments.TerminalStatuses[5]),
 		limit,
 	)
 	if err != nil {
