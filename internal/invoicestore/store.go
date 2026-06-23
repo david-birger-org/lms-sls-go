@@ -11,7 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/apexwoot/lms-sls-go/internal/externalcheckout"
-	"github.com/apexwoot/lms-sls-go/internal/fiscalchecks"
+	"github.com/apexwoot/lms-sls-go/internal/fiscalchecksync"
 	"github.com/apexwoot/lms-sls-go/internal/monobank"
 	"github.com/apexwoot/lms-sls-go/internal/payments"
 	"github.com/apexwoot/lms-sls-go/internal/userfeatures"
@@ -326,11 +326,25 @@ func maybeSyncFiscalChecks(ctx context.Context, invoiceID, reference *string) er
 	if payment.InvoiceID == nil || strings.TrimSpace(*payment.InvoiceID) == "" {
 		return nil
 	}
-	checks, err := monobank.NewClient().FetchFiscalChecks(ctx, *payment.InvoiceID)
+	result, err := fiscalchecksync.SyncPayment(
+		ctx,
+		fiscalchecksync.DBStore{},
+		monobank.NewClient(),
+		fiscalchecksync.MissingPayment{
+			PaymentID: payment.ID,
+			InvoiceID: *payment.InvoiceID,
+		},
+	)
 	if err != nil {
 		return err
 	}
-	return fiscalchecks.UpsertForPayment(ctx, payment.ID, *payment.InvoiceID, checks)
+	if result.Empty > 0 {
+		slog.InfoContext(ctx, "monobank fiscal check not ready yet",
+			"payment_id", payment.ID,
+			"invoice_id", *payment.InvoiceID,
+		)
+	}
+	return nil
 }
 
 func parseProviderTimestamp(value string) *time.Time {

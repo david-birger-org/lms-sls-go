@@ -17,8 +17,11 @@ import (
 
 	"github.com/apexwoot/lms-sls-go/internal/auth"
 	"github.com/apexwoot/lms-sls-go/internal/db"
+	"github.com/apexwoot/lms-sls-go/internal/env"
+	"github.com/apexwoot/lms-sls-go/internal/fiscalchecksync"
 	"github.com/apexwoot/lms-sls-go/internal/handlers"
 	"github.com/apexwoot/lms-sls-go/internal/httpx"
+	"github.com/apexwoot/lms-sls-go/internal/monobank"
 )
 
 func configureLogger() {
@@ -151,6 +154,10 @@ func newRouter() *gin.Engine {
 	return r
 }
 
+func shouldStartFiscalCheckWorker() bool {
+	return env.Optional("DATABASE_URL") != "" && env.Optional("MONOBANK_TOKEN") != ""
+}
+
 func main() {
 	configureLogger()
 
@@ -174,6 +181,13 @@ func main() {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	if shouldStartFiscalCheckWorker() {
+		fiscalchecksync.StartWorker(ctx, fiscalchecksync.DBStore{}, monobank.NewClient(), fiscalchecksync.WorkerConfig{})
+		slog.Info("fiscal check sync worker started")
+	} else {
+		slog.Info("fiscal check sync worker disabled", "reason", "missing_database_url_or_monobank_token")
+	}
 
 	go func() {
 		slog.Info("server listening", "port", port)
