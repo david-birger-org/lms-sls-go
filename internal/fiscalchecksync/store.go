@@ -30,12 +30,16 @@ func (DBStore) ListMissing(ctx context.Context, limit int) ([]MissingPayment, er
 			  select 1
 			  from fiscal_checks fc
 			  where fc.payment_id = p.id
+			    and (
+			      nullif(trim(fc.tax_url), '') is not null
+			      or nullif(trim(fc.file), '') is not null
+			    )
 		  )
 		order by p.updated_at desc, p.created_at desc
 		limit $3
 	`, string(payments.StatusPaid), externalcheckout.ParticipationProductSlug, normalizeLimit(limit))
 	if err != nil {
-		return nil, fmt.Errorf("select paid registration payments missing fiscal checks: %w", err)
+		return nil, fmt.Errorf("select paid registration payments missing usable fiscal checks: %w", err)
 	}
 	defer rows.Close()
 
