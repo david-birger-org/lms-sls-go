@@ -166,3 +166,23 @@ func TestRequestLoggerIncludesHTTPXError(t *testing.T) {
 		`"error":"short and stout"`,
 	)
 }
+
+func TestShouldStartFiscalCheckWorkerRequiresDatabaseAndMonobankToken(t *testing.T) {
+	t.Setenv("DATABASE_URL", "")
+	t.Setenv("MONOBANK_TOKEN", "token")
+	if shouldStartFiscalCheckWorker() {
+		t.Fatal("worker started without DATABASE_URL")
+	}
+
+	t.Setenv("DATABASE_URL", "postgres://example")
+	t.Setenv("MONOBANK_TOKEN", "")
+	if shouldStartFiscalCheckWorker() {
+		t.Fatal("worker started without MONOBANK_TOKEN")
+	}
+
+	t.Setenv("DATABASE_URL", "postgres://example")
+	t.Setenv("MONOBANK_TOKEN", "token")
+	if !shouldStartFiscalCheckWorker() {
+		t.Fatal("worker did not start with DATABASE_URL and MONOBANK_TOKEN")
+	}
+}
