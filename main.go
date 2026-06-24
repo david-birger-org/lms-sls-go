@@ -134,6 +134,7 @@ func newRouter() *gin.Engine {
 
 	registrationPaymentsAdmin := api.Group("/registration-payments", auth.RequireAdmin())
 	registrationPaymentsAdmin.GET("", handlers.RegistrationPaymentsList)
+	registrationPaymentsAdmin.POST("/:paymentID/fiscal-checks/sync", handlers.RegistrationPaymentFiscalCheckSync)
 
 	api.GET("/products", handlers.ProductsList)
 

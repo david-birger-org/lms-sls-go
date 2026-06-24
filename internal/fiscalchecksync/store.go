@@ -2,10 +2,13 @@ package fiscalchecksync
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
+
+	"github.com/jackc/pgx/v5"
 
 	"github.com/apexwoot/lms-sls-go/internal/db"
-	"github.com/apexwoot/lms-sls-go/internal/externalcheckout"
 	"github.com/apexwoot/lms-sls-go/internal/fiscalchecks"
 	"github.com/apexwoot/lms-sls-go/internal/monobank"
 	"github.com/apexwoot/lms-sls-go/internal/payments"
@@ -24,7 +27,6 @@ func (DBStore) ListMissing(ctx context.Context, limit int) ([]MissingPayment, er
 		join payments p on p.id = er.payment_id
 		where p.provider = 'monobank'
 		  and p.status = $1
-		  and p.product_slug = $2
 		  and nullif(trim(p.invoice_id), '') is not null
 		  and not exists (
 			  select 1
@@ -36,8 +38,8 @@ func (DBStore) ListMissing(ctx context.Context, limit int) ([]MissingPayment, er
 			    )
 		  )
 		order by p.updated_at desc, p.created_at desc
-		limit $3
-	`, string(payments.StatusPaid), externalcheckout.ParticipationProductSlug, normalizeLimit(limit))
+		limit $2
+	`, string(payments.StatusPaid), normalizeLimit(limit))
 	if err != nil {
 		return nil, fmt.Errorf("select paid registration payments missing usable fiscal checks: %w", err)
 	}
@@ -52,6 +54,34 @@ func (DBStore) ListMissing(ctx context.Context, limit int) ([]MissingPayment, er
 		out = append(out, payment)
 	}
 	return out, rows.Err()
+}
+
+func (DBStore) FindRegistrationPayment(ctx context.Context, paymentID string) (MissingPayment, error) {
+	pool, err := db.Pool(ctx)
+	if err != nil {
+		return MissingPayment{}, err
+	}
+	var payment MissingPayment
+	var invoiceID *string
+	err = pool.QueryRow(ctx, `
+		select p.id, p.invoice_id
+		from external_registrations er
+		join payments p on p.id = er.payment_id
+		where p.id = $1
+		  and p.provider = 'monobank'
+		limit 1
+	`, paymentID).Scan(&payment.PaymentID, &invoiceID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return MissingPayment{}, ErrNotFound
+	}
+	if err != nil {
+		return MissingPayment{}, err
+	}
+	if invoiceID == nil || strings.TrimSpace(*invoiceID) == "" {
+		return MissingPayment{}, ErrMissingInvoice
+	}
+	payment.InvoiceID = strings.TrimSpace(*invoiceID)
+	return payment, nil
 }
 
 func (DBStore) Upsert(ctx context.Context, paymentID, invoiceID string, checks []monobank.FiscalCheck) error {
