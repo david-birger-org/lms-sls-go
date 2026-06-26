@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"strings"
 	"sync"
 	"time"
 
@@ -16,11 +15,9 @@ import (
 )
 
 const (
-	poolMax               = 5
-	idleTimeout           = 5 * time.Second
-	connectTimeout        = 30 * time.Second
-	supabasePoolerSuffix  = ".pooler.supabase.com"
-	supabaseDirectPort    = "5432"
+	poolMax        = 5
+	idleTimeout    = 5 * time.Second
+	connectTimeout = 30 * time.Second
 )
 
 var (
@@ -33,8 +30,8 @@ func validateConnectionString(raw string) (string, error) {
 	if err != nil {
 		return "", errors.New("DATABASE_URL must be a valid Postgres connection string.")
 	}
-	if strings.HasSuffix(parsed.Hostname(), supabasePoolerSuffix) && parsed.Port() == supabaseDirectPort {
-		return "", errors.New("DATABASE_URL must use the Supabase transaction pooler (port 6543) for lms-sls.")
+	if parsed.Scheme != "postgres" && parsed.Scheme != "postgresql" {
+		return "", errors.New("DATABASE_URL must be a Postgres connection string.")
 	}
 	return raw, nil
 }
