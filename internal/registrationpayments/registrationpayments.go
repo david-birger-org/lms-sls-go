@@ -2,7 +2,9 @@ package registrationpayments
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -10,6 +12,11 @@ import (
 	"github.com/apexwoot/lms-sls-go/internal/db"
 	"github.com/apexwoot/lms-sls-go/internal/monobank"
 	"github.com/apexwoot/lms-sls-go/internal/payments"
+)
+
+var (
+	ErrNotFound         = errors.New("registration payment not found")
+	ErrPaymentFinalized = errors.New("registration payment is paid or processing")
 )
 
 type Row struct {
@@ -128,4 +135,56 @@ func SelectAll(ctx context.Context) ([]Row, error) {
 		return nil, fmt.Errorf("select registration payments: %w", err)
 	}
 	return scanRows(rows)
+}
+
+func Delete(ctx context.Context, paymentID string) error {
+	paymentID = strings.TrimSpace(paymentID)
+	if paymentID == "" {
+		return ErrNotFound
+	}
+
+	pool, err := db.Pool(ctx)
+	if err != nil {
+		return err
+	}
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
+
+	var status payments.Status
+	var rawStatus string
+	err = tx.QueryRow(ctx, `
+		select p.status
+		from external_registrations er
+		join payments p on p.id = er.payment_id
+		where p.id = $1
+		for update
+	`, paymentID).Scan(&rawStatus)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("select registration payment for delete: %w", err)
+	}
+
+	status = payments.Status(rawStatus)
+	if status == payments.StatusPaid || status == payments.StatusProcessing {
+		return ErrPaymentFinalized
+	}
+
+	tag, err := tx.Exec(ctx, `delete from payments where id = $1`, paymentID)
+	if err != nil {
+		return fmt.Errorf("delete registration payment: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit registration payment delete: %w", err)
+	}
+	return nil
 }
