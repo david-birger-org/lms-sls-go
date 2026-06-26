@@ -10,16 +10,21 @@ import (
 
 const DefaultBatchLimit = 100
 
+var (
+	ErrMissingInvoice = errors.New("registration payment invoice is missing")
+	ErrNotFound       = errors.New("registration payment not found")
+)
+
 type MissingPayment struct {
 	PaymentID string
 	InvoiceID string
 }
 
 type Result struct {
-	Scanned int
-	Synced  int
-	Empty   int
-	Failed  int
+	Scanned int `json:"scanned"`
+	Synced  int `json:"synced"`
+	Empty   int `json:"empty"`
+	Failed  int `json:"failed"`
 }
 
 type Store interface {
