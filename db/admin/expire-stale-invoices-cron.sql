@@ -1,5 +1,8 @@
--- +goose Up
-create extension if not exists pg_cron with schema extensions;
+create extension if not exists pg_cron;
+
+select cron.unschedule(jobid)
+from cron.job
+where jobname = 'expire-stale-invoices';
 
 select cron.schedule(
   'expire-stale-invoices',
