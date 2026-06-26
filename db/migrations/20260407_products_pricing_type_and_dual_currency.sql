@@ -14,12 +14,18 @@ alter table public.products
   add column if not exists pricing_type text not null default 'on_request';
 
 alter table public.products
+  drop constraint if exists products_pricing_type_check;
+
+alter table public.products
   add constraint products_pricing_type_check
     check (pricing_type in ('fixed', 'on_request'));
 
 alter table public.products
   add column if not exists price_uah_minor bigint,
   add column if not exists price_usd_minor bigint;
+
+alter table public.products
+  drop constraint if exists products_fixed_prices_required;
 
 alter table public.products
   add constraint products_fixed_prices_required
