@@ -33,12 +33,12 @@ The first migration is a no-op baseline that records the restored Neon schema as
 
 `make migrate-down` rolls back one migration with Goose. The baseline rollback is intentionally a no-op; add explicit `-- +goose Down` sections to new migrations when rollback is required.
 
-Before recreating the stale-invoice cron job on a fresh Neon project, enable `pg_cron` for the target database in Neon by setting `cron.database_name`, then restart the compute.
+Before recreating the stale-invoice cron job on a fresh Neon project, enable `pg_cron` for the target database in Neon by setting `cron.database_name` to the restored database name, then restart the compute. For the default Neon database, this setting should be `neondb`, not `postgres`.
 
 After `pg_cron` is enabled, recreate the scheduled job with:
 
 ```sh
-psql "$DATABASE_URL_DIRECT" -f db/admin/expire-stale-invoices-cron.sql
+psql "$DATABASE_URL_DIRECT" -v ON_ERROR_STOP=1 -f db/admin/expire-stale-invoices-cron.sql
 ```
 
 ## Validate
