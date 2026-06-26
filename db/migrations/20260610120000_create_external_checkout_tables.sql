@@ -1,5 +1,4 @@
-begin;
-
+-- +goose Up
 create table if not exists external_registrations (
   id uuid primary key,
   payment_id uuid not null references payments(id) on delete cascade,
@@ -41,5 +40,3 @@ create index if not exists fiscal_checks_invoice_id_idx
 
 create index if not exists fiscal_checks_status_idx
   on fiscal_checks (status);
-
-commit;

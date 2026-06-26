@@ -1,3 +1,4 @@
+-- +goose Up
 alter table public.payments
   add column if not exists product_slug text;
 

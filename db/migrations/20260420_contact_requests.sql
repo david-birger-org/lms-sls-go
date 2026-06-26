@@ -1,3 +1,4 @@
+-- +goose Up
 create table if not exists public.contact_requests (
   id uuid primary key default gen_random_uuid(),
   request_type text not null,

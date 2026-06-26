@@ -1,3 +1,4 @@
+-- +goose Up
 -- products table for managing purchasable items with admin-controlled pricing
 create table if not exists public.products (
   id uuid primary key default gen_random_uuid(),

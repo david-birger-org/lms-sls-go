@@ -1,3 +1,4 @@
+-- +goose Up
 create table if not exists public.auth_users (
   id text primary key,
   name text not null,
@@ -47,6 +48,7 @@ create table if not exists public.auth_verifications (
   updated_at timestamptz not null default timezone('utc', now())
 );
 
+-- +goose StatementBegin
 do $$
 begin
   if exists (
@@ -60,6 +62,7 @@ begin
       rename column clerk_user_id to auth_user_id;
   end if;
 end $$;
+-- +goose StatementEnd
 
 alter table public.app_users
   drop column if exists clerk_created_at,

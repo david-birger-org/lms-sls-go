@@ -1,3 +1,4 @@
+-- +goose Up
 alter table public.payments
   alter column user_id drop not null,
   add column if not exists created_by_admin_user_id uuid references public.app_users(id);

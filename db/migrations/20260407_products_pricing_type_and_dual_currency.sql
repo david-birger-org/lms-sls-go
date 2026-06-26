@@ -1,3 +1,4 @@
+-- +goose Up
 -- switch products to dual-currency pricing + pricing_type branching
 alter table public.products
   drop constraint if exists products_currency_check;

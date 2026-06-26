@@ -1,3 +1,4 @@
+-- +goose Up
 create extension if not exists pg_cron with schema extensions;
 
 select cron.schedule(

@@ -1,3 +1,4 @@
+-- +goose Up
 alter type public.payment_status add value if not exists 'cancelled';
 
 alter table public.payments

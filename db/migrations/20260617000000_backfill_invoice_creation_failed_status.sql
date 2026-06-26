@@ -1,3 +1,4 @@
+-- +goose Up
 update public.payments
 set
   status = 'creation_failed'::public.payment_status,

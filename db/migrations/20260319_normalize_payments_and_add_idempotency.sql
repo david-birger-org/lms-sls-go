@@ -1,3 +1,5 @@
+-- +goose Up
+-- +goose StatementBegin
 do $$
 begin
   create type public.payment_status as enum (
@@ -14,6 +16,7 @@ begin
 exception
   when duplicate_object then null;
 end $$;
+-- +goose StatementEnd
 
 alter table public.payments
   add column if not exists idempotency_key text,

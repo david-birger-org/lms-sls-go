@@ -1,3 +1,4 @@
+-- +goose Up
 create table if not exists public.user_features (
   id uuid primary key default gen_random_uuid(),
   app_user_id uuid not null references public.app_users(id) on delete cascade,
