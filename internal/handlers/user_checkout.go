@@ -109,6 +109,7 @@ func UserCheckout(c *gin.Context) {
 	result := invoicestore.CreateStoredMonobankInvoice(ctx, invoicestore.CreateStoredMonobankInvoiceInput{
 		AmountMinor:     amountMinor,
 		Currency:        currency,
+		CustomerEmail:   customerEmail,
 		CustomerName:    customerName,
 		Description:     product.NameEn,
 		PendingInvoice:  pending,

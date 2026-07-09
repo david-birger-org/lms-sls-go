@@ -141,6 +141,7 @@ func MonobankInvoiceCreate(c *gin.Context) {
 	result := invoicestore.CreateStoredMonobankInvoice(ctx, invoicestore.CreateStoredMonobankInvoiceInput{
 		AmountMinor:     parsed.AmountMinor,
 		Currency:        parsed.Currency,
+		CustomerEmail:   customerEmail,
 		CustomerName:    parsed.CustomerName,
 		Description:     parsed.Description,
 		PendingInvoice:  pending,
