@@ -15,6 +15,7 @@ import (
 	"io"
 	"math"
 	"net/http"
+	"net/mail"
 	"net/url"
 	"strconv"
 	"strings"
@@ -353,6 +354,8 @@ type FiscalizationItem struct {
 	Code  string `json:"code,omitempty"`
 }
 
+const defaultFiscalItemCode = "service"
+
 func fiscalItemsOrDefault(amountMinor int64, description string, items []FiscalizationItem) []FiscalizationItem {
 	if len(items) > 0 {
 		return items
@@ -368,17 +371,24 @@ func fiscalItemsOrDefault(amountMinor int64, description string, items []Fiscali
 			Sum:   amountMinor,
 			Total: amountMinor,
 			Unit:  "послуга",
+			Code:  defaultFiscalItemCode,
 		},
 	}
 }
 
-func (c *Client) CreateInvoice(ctx context.Context, in CreateInvoiceInput) (InvoiceResponse, error) {
-	customerEmails := []string(nil)
-	if in.CustomerEmail != nil {
-		if email := strings.TrimSpace(*in.CustomerEmail); email != "" {
-			customerEmails = []string{email}
-		}
+func customerEmailsOrEmpty(customerEmail *string) []string {
+	if customerEmail == nil {
+		return nil
 	}
+	email := strings.TrimSpace(*customerEmail)
+	parsed, err := mail.ParseAddress(email)
+	if err != nil || parsed.Address != email {
+		return nil
+	}
+	return []string{email}
+}
+
+func (c *Client) CreateInvoice(ctx context.Context, in CreateInvoiceInput) (InvoiceResponse, error) {
 	body := createInvoiceBody{
 		Amount:   in.AmountMinor,
 		Ccy:      CurrencyCode(in.Currency),
@@ -387,7 +397,7 @@ func (c *Client) CreateInvoice(ctx context.Context, in CreateInvoiceInput) (Invo
 			Reference:      in.Reference,
 			Destination:    in.Description,
 			Comment:        fmt.Sprintf("%s: %s", in.CustomerName, in.Description),
-			CustomerEmails: customerEmails,
+			CustomerEmails: customerEmailsOrEmpty(in.CustomerEmail),
 			BasketOrder:    fiscalItemsOrDefault(in.AmountMinor, in.Description, in.FiscalItems),
 		},
 		RedirectURL: in.RedirectURL,

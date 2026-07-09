@@ -64,7 +64,39 @@ func TestCreateInvoiceSendsFiscalBasketAndCustomerEmail(t *testing.T) {
 		t.Fatalf("basketOrder length: got %d, want 1", len(got.MerchantPaymInfo.BasketOrder))
 	}
 	item := got.MerchantPaymInfo.BasketOrder[0]
-	if item.Name != "Participation fee" || item.Qty != 1 || item.Sum != 12345 || item.Total != 12345 || item.Unit != "послуга" {
+	if item.Name != "Participation fee" || item.Qty != 1 || item.Sum != 12345 || item.Total != 12345 || item.Unit != "послуга" || item.Code != defaultFiscalItemCode {
 		t.Fatalf("basketOrder item: got %#v", item)
+	}
+}
+
+func TestCreateInvoiceOmitsInvalidCustomerEmail(t *testing.T) {
+	var got createInvoiceBody
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
+			t.Fatalf("decode request body: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"invoiceId":"invoice-123","pageUrl":"https://pay.example/invoice-123"}`))
+	}))
+	defer server.Close()
+
+	email := "n/a"
+	client := NewClientWithToken("token")
+	client.baseURL = server.URL + "/api/merchant/"
+
+	_, err := client.CreateInvoice(context.Background(), CreateInvoiceInput{
+		AmountMinor:     12345,
+		Currency:        CurrencyUAH,
+		CustomerEmail:   &email,
+		CustomerName:    "Customer",
+		Description:     "Participation fee",
+		Reference:       "payment-ref",
+		ValiditySeconds: 24 * 60 * 60,
+	})
+	if err != nil {
+		t.Fatalf("CreateInvoice: %v", err)
+	}
+	if len(got.MerchantPaymInfo.CustomerEmails) != 0 {
+		t.Fatalf("customerEmails: got %#v, want none", got.MerchantPaymInfo.CustomerEmails)
 	}
 }
