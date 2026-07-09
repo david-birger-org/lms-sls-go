@@ -353,6 +353,25 @@ type FiscalizationItem struct {
 	Code  string `json:"code,omitempty"`
 }
 
+func fiscalItemsOrDefault(amountMinor int64, description string, items []FiscalizationItem) []FiscalizationItem {
+	if len(items) > 0 {
+		return items
+	}
+	name := strings.TrimSpace(description)
+	if name == "" {
+		name = "Послуга"
+	}
+	return []FiscalizationItem{
+		{
+			Name:  name,
+			Qty:   1,
+			Sum:   amountMinor,
+			Total: amountMinor,
+			Unit:  "послуга",
+		},
+	}
+}
+
 func (c *Client) CreateInvoice(ctx context.Context, in CreateInvoiceInput) (InvoiceResponse, error) {
 	customerEmails := []string(nil)
 	if in.CustomerEmail != nil {
@@ -369,7 +388,7 @@ func (c *Client) CreateInvoice(ctx context.Context, in CreateInvoiceInput) (Invo
 			Destination:    in.Description,
 			Comment:        fmt.Sprintf("%s: %s", in.CustomerName, in.Description),
 			CustomerEmails: customerEmails,
-			BasketOrder:    in.FiscalItems,
+			BasketOrder:    fiscalItemsOrDefault(in.AmountMinor, in.Description, in.FiscalItems),
 		},
 		RedirectURL: in.RedirectURL,
 		WebHookURL:  in.WebhookURL,
