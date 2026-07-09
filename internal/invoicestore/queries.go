@@ -444,12 +444,13 @@ func UpdateInvoiceCancelled(ctx context.Context, invoiceID string, providerPaylo
 		update payments
 		set
 			provider_status = $1,
-			status = $1,
-			provider_payload = coalesce($2::jsonb, provider_payload),
+			status = $2,
+			provider_payload = coalesce($3::jsonb, provider_payload),
 			updated_at = timezone('utc', now())
-		where invoice_id = $3
+		where invoice_id = $4
 	`,
 		string(payments.StatusCancelled),
+		payments.StatusCancelled,
 		toJSONB(providerPayload),
 		invoiceID,
 	)
