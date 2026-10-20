@@ -14,19 +14,26 @@ import (
 
 const lecturesFeature = "lectures"
 
-func UserLectures(c *gin.Context) {
+// requireLecturesFeature writes a 403 or 500 unless the user has the lectures feature.
+func requireLecturesFeature(c *gin.Context) bool {
 	user := auth.UserFrom(c)
-	ctx := c.Request.Context()
-
-	hasAccess, err := userfeatures.HasActiveFeature(ctx, user.UserID, lecturesFeature)
+	hasAccess, err := userfeatures.HasActiveFeature(c.Request.Context(), user.UserID, lecturesFeature)
 	if err != nil {
 		httpx.Error(c, http.StatusInternalServerError, "Failed to fetch lectures: "+err.Error())
-		return
+		return false
 	}
 	if !hasAccess {
 		httpx.Error(c, http.StatusForbidden, "No access to lectures.")
+		return false
+	}
+	return true
+}
+
+func UserLectures(c *gin.Context) {
+	if !requireLecturesFeature(c) {
 		return
 	}
+	ctx := c.Request.Context()
 
 	slug := strings.TrimSpace(c.Query("slug"))
 	if slug == "" {
@@ -48,6 +55,10 @@ func UserLectures(c *gin.Context) {
 		httpx.Error(c, http.StatusNotFound, "Lecture not found.")
 		return
 	}
+	if len(lecture.PDFData) == 0 {
+		httpx.Error(c, http.StatusNotFound, "Lecture notes not found.")
+		return
+	}
 
 	watermarked, err := lectures.ApplyWatermark(lecture.PDFData)
 	if err != nil {
@@ -58,4 +69,26 @@ func UserLectures(c *gin.Context) {
 	c.Header("Cache-Control", "private, no-store")
 	c.Header("Content-Disposition", `inline; filename="`+slug+`.pdf"`)
 	c.Data(http.StatusOK, "application/pdf", watermarked)
+}
+
+func UserLectureVideo(c *gin.Context) {
+	if !requireLecturesFeature(c) {
+		return
+	}
+	slug := strings.TrimSpace(c.Query("slug"))
+	if slug == "" {
+		httpx.Error(c, http.StatusBadRequest, "Missing lecture slug.")
+		return
+	}
+	videoID, err := lectures.SelectActiveVideoID(c.Request.Context(), slug)
+	if err != nil {
+		httpx.Error(c, http.StatusInternalServerError, "Failed to fetch lecture video: "+err.Error())
+		return
+	}
+	if videoID == nil {
+		httpx.Error(c, http.StatusNotFound, "Lecture video not found.")
+		return
+	}
+	c.Header("Cache-Control", "private, no-store")
+	c.JSON(http.StatusOK, gin.H{"videoId": *videoID})
 }
