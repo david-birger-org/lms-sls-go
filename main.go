@@ -145,9 +145,20 @@ func newRouter() *gin.Engine {
 	productsAdmin.PUT("", handlers.ProductsAdminUpdate)
 	productsAdmin.DELETE("", handlers.ProductsAdminDelete)
 
+	lecturesAdmin := api.Group("/lectures/admin", auth.RequireAdmin())
+	lecturesAdmin.GET("", handlers.LecturesAdminList)
+	lecturesAdmin.POST("", handlers.LecturesAdminCreate)
+	lecturesAdmin.PUT("", handlers.LecturesAdminUpdate)
+	lecturesAdmin.DELETE("", handlers.LecturesAdminDelete)
+	lecturesAdmin.PUT("/notes", handlers.LecturesAdminNotesUpload)
+	lecturesAdmin.DELETE("/notes", handlers.LecturesAdminNotesDelete)
+	lecturesAdmin.PUT("/video", handlers.LecturesAdminVideoSet)
+	lecturesAdmin.DELETE("/video", handlers.LecturesAdminVideoDelete)
+
 	user := api.Group("/user", auth.RequireUser())
 	user.POST("/checkout", handlers.UserCheckout)
 	user.GET("/lectures", handlers.UserLectures)
+	user.GET("/lectures/video", handlers.UserLectureVideo)
 	user.GET("/purchases", handlers.UserPurchases)
 
 	r.NoRoute(jsonError(http.StatusNotFound, "Not found."))
